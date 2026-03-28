@@ -136,8 +136,6 @@ fn main() -> ExitCode {
             .collect(),
     };
 
-    dbg!(&config);
-
     let mut sandbox = Sandbox::new(config).unwrap();
 
     let root_dir_path = Path::new(&cli.root_dir);
