@@ -217,3 +217,21 @@ pub fn get_cgroup_cpu_stats(cgroup_name: &str) -> anyhow::Result<(u64, u64)> {
 
     Ok((user_ms, system_ms))
 }
+
+pub struct CGroupGuard<'a> {
+    cgroup_name: &'a str,
+}
+
+impl<'a> CGroupGuard<'a> {
+    pub fn new(cgroup_name: &'a str) -> Self {
+        Self { cgroup_name }
+    }
+}
+
+impl<'a> Drop for CGroupGuard<'a> {
+    fn drop(&mut self) {
+        if let Err(e) = remove_cgroup(&self.cgroup_name) {
+            eprintln!("Failed to remove cgroup `{}`: {}", self.cgroup_name, e);
+        }
+    }
+}

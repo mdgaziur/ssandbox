@@ -11,9 +11,7 @@ mod seccomp;
 mod stdio;
 pub mod unit;
 
-use crate::cgroup::{
-    cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, remove_cgroup,
-};
+use crate::cgroup::{cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, remove_cgroup, CGroupGuard};
 use crate::fs::extract_artifacts;
 use crate::inmemory_file::new_inmemory_file;
 use crate::killer::TimeLimitKiller;
@@ -109,6 +107,8 @@ impl Sandbox {
 
         match fork()? {
             Fork::Parent(child_pid) => {
+                let _guard = CGroupGuard::new(&cgroup_name);
+
                 let mut err_pipe_reader = File::from(err_pipe_reader_fd);
                 drop(err_pipe_writer_fd);
 
@@ -146,8 +146,6 @@ impl Sandbox {
                     || killer.is_tle()
                     || matches!(status, WaitStatus::Signaled(_, Signal::SIGXCPU, _));
                 let memory_limit_exceeded = cgroup_check_oom(&cgroup_name)?;
-
-                remove_cgroup(&cgroup_name)?;
 
                 let mut stdout = String::new();
                 if let Some(ref child_stdout) = child_stdout {
