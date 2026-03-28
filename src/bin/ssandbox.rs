@@ -69,7 +69,7 @@ struct Cli {
     /// Mount points. The format is `host_path=sandbox_path`. For example, `--mount /tmp/data=/app/data`
     /// will mount the host directory `/tmp/data` to `/app/data` in the sandbox.
     /// The sandbox path is relative to the sandbox's root directory, and the host path is an absolute path on the host.
-    /// By default, mounts are read-write. You can make them read-only by adding `:ro` suffix to the mount definition, e.g. `--mount-ro /tmp/data=/app/data:ro`.
+    /// By default, mounts are read-write. You can make them read-only by adding `:ro` suffix to the mount definition, e.g. `--mount /tmp/data=/app/data:ro`.
     #[arg(long, value_parser = parse_key_val)]
     mount: Vec<(String, String)>,
 }
