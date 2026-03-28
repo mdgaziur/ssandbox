@@ -230,7 +230,7 @@ impl<'a> CGroupGuard<'a> {
 
 impl<'a> Drop for CGroupGuard<'a> {
     fn drop(&mut self) {
-        if let Err(e) = remove_cgroup(&self.cgroup_name) {
+        if let Err(e) = remove_cgroup(self.cgroup_name) {
             eprintln!("Failed to remove cgroup `{}`: {}", self.cgroup_name, e);
         }
     }

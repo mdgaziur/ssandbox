@@ -68,7 +68,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
 
     for mountpoint in &config.mountpoints {
         let target = Path::new(chroot_dir).canonicalize()?.join(
-            &mountpoint
+            mountpoint
                 .target
                 .strip_prefix("/")
                 .unwrap_or(&mountpoint.target),
@@ -126,7 +126,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
 pub fn extract_artifacts(config: &SandboxConfig, chroot_dir: &Path) -> anyhow::Result<()> {
     for extract_artifact in &config.extract_artifacts {
         let source = chroot_dir.join(
-            &extract_artifact
+            extract_artifact
                 .source
                 .strip_prefix("/")
                 .unwrap_or(&extract_artifact.source),
@@ -137,7 +137,7 @@ pub fn extract_artifacts(config: &SandboxConfig, chroot_dir: &Path) -> anyhow::R
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::copy(&source, &target)?;
+            fs::copy(&source, target)?;
         } else {
             anyhow::bail!(
                 "Artifact source `{}` does not exist in chroot dir",

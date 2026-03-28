@@ -11,7 +11,7 @@ mod seccomp;
 mod stdio;
 pub mod unit;
 
-use crate::cgroup::{cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, remove_cgroup, CGroupGuard};
+use crate::cgroup::{cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, CGroupGuard};
 use crate::fs::extract_artifacts;
 use crate::inmemory_file::new_inmemory_file;
 use crate::killer::TimeLimitKiller;
