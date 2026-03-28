@@ -1,7 +1,11 @@
 use nix::unistd::{dup2_stderr, dup2_stdin, dup2_stdout};
 use std::os::fd::AsFd;
 
-pub fn setup_stdio<Fd>(child_stdin: Option<Fd>, child_stdout: Option<Fd>, child_stderr: Option<Fd>) -> anyhow::Result<()>
+pub fn setup_stdio<Fd>(
+    child_stdin: Option<Fd>,
+    child_stdout: Option<Fd>,
+    child_stderr: Option<Fd>,
+) -> anyhow::Result<()>
 where
     Fd: AsFd,
 {

@@ -1,20 +1,20 @@
-use crate::{SandboxChildError, SandboxChildErrorKind, SandboxConfig};
 use crate::cgroup::join_cgroup;
 use crate::fs::setup_fs;
 use crate::limit::setup_limits;
 use crate::namespace::{setup_namespace0, setup_namespace1};
 use crate::seccomp::setup_seccomp;
 use crate::stdio::setup_stdio;
-use nix::unistd::{execve, getpid, setgroups, setresgid, setresuid, Gid, Pid, Uid};
+use crate::{SandboxChildError, SandboxChildErrorKind, SandboxConfig};
+use fork::fork;
+use nix::libc::{PR_SET_DUMPABLE, prctl};
+use nix::sys::signal::kill;
+use nix::sys::wait::{WaitStatus, waitpid};
+use nix::unistd::{Gid, Pid, Uid, execve, getpid, setgroups, setresgid, setresuid};
 use std::convert::Infallible;
 use std::ffi::CString;
 use std::fs::File;
-use std::io::{stderr, stdin, stdout, Write};
+use std::io::{Write, stderr, stdin, stdout};
 use std::os::fd::{AsFd, BorrowedFd};
-use fork::fork;
-use nix::libc::{prctl, PR_SET_DUMPABLE};
-use nix::sys::signal::kill;
-use nix::sys::wait::{waitpid, WaitStatus};
 
 pub fn enter_child<Fd>(
     config: &SandboxConfig,
@@ -32,58 +32,50 @@ where
         let serialized = bincode::serialize(&SandboxChildError {
             user_error: false,
             kind: SandboxChildErrorKind::SetupRuntimeFailed(e.to_string()),
-        }).unwrap();
+        })
+        .unwrap();
         let _ = child_err_writer.write_all(&serialized);
 
         std::process::exit(101);
     }
 
     match fork() {
-        Ok(fork::Fork::Child) => {
-            enter_grandchild(
-                config,
-                child_err_writer,
-                cgroup_name,
-                chroot_dir,
-                child_stdin,
-                child_stdout,
-                child_stderr,
-            )
-        }
-        Ok(fork::Fork::Parent(child_pid)) => {
-            match waitpid(Pid::from_raw(child_pid), None) {
-                Ok(status) => {
-                    match status {
-                        WaitStatus::Exited(_, code) => {
-                            std::process::exit(code)
-                        }
-                        WaitStatus::Signaled(_, signal, _) => {
-                            let _ = kill(
-                                getpid(),
-                                signal
-                            );
+        Ok(fork::Fork::Child) => enter_grandchild(
+            config,
+            child_err_writer,
+            cgroup_name,
+            chroot_dir,
+            child_stdin,
+            child_stdout,
+            child_stderr,
+        ),
+        Ok(fork::Fork::Parent(child_pid)) => match waitpid(Pid::from_raw(child_pid), None) {
+            Ok(status) => match status {
+                WaitStatus::Exited(_, code) => std::process::exit(code),
+                WaitStatus::Signaled(_, signal, _) => {
+                    let _ = kill(getpid(), signal);
 
-                            std::process::exit(128 + signal as i32)
-                        }
-                        _ => std::process::exit(1)
-                    }
+                    std::process::exit(128 + signal as i32)
                 }
-                Err(e) => {
-                    let serialized = bincode::serialize(&SandboxChildError {
-                        user_error: false,
-                        kind: SandboxChildErrorKind::ForkFailed(e.to_string()),
-                    }).unwrap();
-                    let _ = child_err_writer.write_all(&serialized);
+                _ => std::process::exit(1),
+            },
+            Err(e) => {
+                let serialized = bincode::serialize(&SandboxChildError {
+                    user_error: false,
+                    kind: SandboxChildErrorKind::ForkFailed(e.to_string()),
+                })
+                .unwrap();
+                let _ = child_err_writer.write_all(&serialized);
 
-                    std::process::exit(101);
-                }
+                std::process::exit(101);
             }
-        }
+        },
         Err(e) => {
             let serialized = bincode::serialize(&SandboxChildError {
                 user_error: false,
                 kind: SandboxChildErrorKind::ForkFailed(e.to_string()),
-            }).unwrap();
+            })
+            .unwrap();
             let _ = child_err_writer.write_all(&serialized);
 
             std::process::exit(101);
@@ -110,12 +102,13 @@ where
         child_stdin,
         child_stdout,
         child_stderr,
-        child_err_writer.as_fd()
+        child_err_writer.as_fd(),
     ) {
         let serialized = bincode::serialize(&SandboxChildError {
             user_error: false,
             kind: SandboxChildErrorKind::SetupRuntimeFailed(e.to_string()),
-        }).unwrap();
+        })
+        .unwrap();
         let _ = child_err_writer.write_all(&serialized);
 
         std::process::exit(101);
@@ -139,19 +132,21 @@ fn execute(config: &SandboxConfig) -> Result<Infallible, SandboxChildError> {
         .executable_args
         .iter()
         .map(|arg| CString::new(arg.as_str()))
-        .collect::<Result<Vec<_>, _>>().map_err(|_| SandboxChildError {
-        user_error: true,
-        kind: SandboxChildErrorKind::CStringEncodingFailed,
-    })?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| SandboxChildError {
+            user_error: true,
+            kind: SandboxChildErrorKind::CStringEncodingFailed,
+        })?;
 
     let env = config
         .env
         .iter()
         .map(|(key, val)| CString::new(format!("{}={}", key, val)))
-        .collect::<Result<Vec<_>, _>>().map_err(|_| SandboxChildError {
-        user_error: true,
-        kind: SandboxChildErrorKind::CStringEncodingFailed,
-    })?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| SandboxChildError {
+            user_error: true,
+            kind: SandboxChildErrorKind::CStringEncodingFailed,
+        })?;
 
     execve(&executable, &executable_args, &env).map_err(|e| SandboxChildError {
         user_error: true,

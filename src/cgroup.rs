@@ -83,7 +83,11 @@ pub fn setup_cgroup(config: &SandboxConfig) -> anyhow::Result<String> {
     // })?;
 
     // Set CPU quota to 100% to allow full CPU usage
-    std::fs::write(format!("{}/pids.max", &cgroup_path), config.limits.max_nproc.to_string()).map_err(|e| {
+    std::fs::write(
+        format!("{}/pids.max", &cgroup_path),
+        config.limits.max_nproc.to_string(),
+    )
+    .map_err(|e| {
         CGroupError::new(
             e.to_string(),
             cgroup_path.clone(),
@@ -155,10 +159,7 @@ pub fn cgroup_check_oom(cgroup_name: &str) -> anyhow::Result<bool> {
 }
 
 pub fn cgroup_kill(cgroup_name: &str) -> anyhow::Result<()> {
-    fs::write(
-        format!("/sys/fs/cgroup/{}/cgroup.kill", cgroup_name),
-        "1",
-    )?;
+    fs::write(format!("/sys/fs/cgroup/{}/cgroup.kill", cgroup_name), "1")?;
     Ok(())
 }
 
@@ -198,7 +199,9 @@ pub fn get_cgroup_cpu_stats(cgroup_name: &str) -> anyhow::Result<(u64, u64)> {
 
     for line in content.lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 2 { continue; }
+        if parts.len() < 2 {
+            continue;
+        }
 
         match parts[0] {
             "user_usec" => {

@@ -11,23 +11,26 @@ mod seccomp;
 mod stdio;
 pub mod unit;
 
-use crate::cgroup::{cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, remove_cgroup};
+use crate::cgroup::{
+    cgroup_check_oom, cgroup_kill, get_cgroup_cpu_stats, get_cgroup_memory_peak, remove_cgroup,
+};
+use crate::fs::extract_artifacts;
 use crate::inmemory_file::new_inmemory_file;
 use crate::killer::TimeLimitKiller;
 use crate::runtime::enter_child;
 use fork::{Fork, fork};
-use nix::unistd::Pid;
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
-use std::time::Instant;
-use std::fs::{read_dir, File};
 use fs_extra::dir::copy;
 use nix::fcntl::{FcntlArg, FdFlag};
 use nix::sys::signal::Signal;
-use nix::sys::wait::{waitpid, WaitStatus};
+use nix::sys::wait::{WaitStatus, waitpid};
+use nix::unistd::Pid;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
+use std::fs::{File, read_dir};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::PathBuf;
+use std::time::Instant;
 use tempdir::TempDir;
 
 #[derive(Debug)]
@@ -66,7 +69,11 @@ impl Sandbox {
             }
         }
 
-        copy(file_path, self.chroot_dir.path(), &fs_extra::dir::CopyOptions::new().content_only(true))?;
+        copy(
+            file_path,
+            self.chroot_dir.path(),
+            &fs_extra::dir::CopyOptions::new().content_only(true),
+        )?;
 
         Ok(())
     }
@@ -76,9 +83,7 @@ impl Sandbox {
 
         let child_stdin = if let Some(ref stdin) = self.config.stdin {
             let f = new_inmemory_file("ssandbox_stdin")?;
-            f
-                .as_file()
-                .write_all(stdin.as_bytes())?;
+            f.as_file().write_all(stdin.as_bytes())?;
             f.as_file().seek(SeekFrom::Start(0))?;
 
             Some(f)
@@ -98,7 +103,6 @@ impl Sandbox {
             None
         };
 
-
         let cgroup_name = cgroup::setup_cgroup(&self.config)?;
         let (err_pipe_reader_fd, err_pipe_writer_fd) = nix::unistd::pipe()?;
         nix::fcntl::fcntl(&err_pipe_writer_fd, FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC))?;
@@ -111,19 +115,18 @@ impl Sandbox {
                 let killer =
                     TimeLimitKiller::new(self.config.limits.time_limit, Pid::from_raw(child_pid));
 
-                let status =
-                    match waitpid(Pid::from_raw(child_pid), None) {
-                        Ok(status) => status,
-                        Err(e) => {
-                            killer.cancel();
-                            cgroup_kill(&cgroup_name)?;
+                let status = match waitpid(Pid::from_raw(child_pid), None) {
+                    Ok(status) => status,
+                    Err(e) => {
+                        killer.cancel();
+                        cgroup_kill(&cgroup_name)?;
 
-                            return Ok(SandboxResult {
-                                sandbox_error: Some(SandboxError::WaitpidFailed(e.to_string())),
-                                ..Default::default()
-                            });
-                        }
-                    };
+                        return Ok(SandboxResult {
+                            sandbox_error: Some(SandboxError::WaitpidFailed(e.to_string())),
+                            ..Default::default()
+                        });
+                    }
+                };
 
                 killer.cancel();
                 cgroup_kill(&cgroup_name)?;
@@ -135,14 +138,16 @@ impl Sandbox {
 
                 let elapsed_wall_time = start_time.elapsed().as_millis() as u64;
 
-                let (user_cpu_time, system_cpu_time) = get_cgroup_cpu_stats(&cgroup_name)
-                    .unwrap_or((0, 0));
+                let (user_cpu_time, system_cpu_time) =
+                    get_cgroup_cpu_stats(&cgroup_name).unwrap_or((0, 0));
                 let elapsed_cpu_time = user_cpu_time + system_cpu_time;
                 let peak_memory_usage = get_cgroup_memory_peak(&cgroup_name)?;
                 let time_limit_exceeded = elapsed_cpu_time > self.config.limits.time_limit
                     || killer.is_tle()
                     || matches!(status, WaitStatus::Signaled(_, Signal::SIGXCPU, _));
                 let memory_limit_exceeded = cgroup_check_oom(&cgroup_name)?;
+
+                remove_cgroup(&cgroup_name)?;
 
                 let mut stdout = String::new();
                 if let Some(ref child_stdout) = child_stdout {
@@ -167,7 +172,7 @@ impl Sandbox {
                     _ => 0,
                 };
 
-                remove_cgroup(&cgroup_name)?;
+                extract_artifacts(&self.config, self.chroot_dir.path())?;
 
                 Ok(SandboxResult {
                     elapsed_cpu_time,
@@ -175,14 +180,17 @@ impl Sandbox {
                     peak_memory_usage,
                     time_limit_exceeded,
                     memory_limit_exceeded,
-                    output_limit_exceeded: matches!(status, WaitStatus::Signaled(_, Signal::SIGXFSZ, _)),
+                    output_limit_exceeded: matches!(
+                        status,
+                        WaitStatus::Signaled(_, Signal::SIGXFSZ, _)
+                    ),
                     exit_status_code: exit_status,
                     signal,
                     runtime_error: signal != 0 && sandbox_error.is_none(),
                     system_error: sandbox_error.is_some(),
                     stdout,
                     stderr,
-                    sandbox_error
+                    sandbox_error,
                 })
             }
             Fork::Child => {
@@ -196,9 +204,19 @@ impl Sandbox {
                         err_pipe_writer,
                         &cgroup_name,
                         self.chroot_dir.path().to_str().unwrap(),
-                        child_stdin.as_ref().map(|child_stdin| child_stdin.as_file()),
-                        if let Some(ref child_stdout) = child_stdout { Some(child_stdout.as_file()) } else { None },
-                        if let Some(ref child_stderr) = child_stderr { Some(child_stderr.as_file()) } else { None },
+                        child_stdin
+                            .as_ref()
+                            .map(|child_stdin| child_stdin.as_file()),
+                        if let Some(ref child_stdout) = child_stdout {
+                            Some(child_stdout.as_file())
+                        } else {
+                            None
+                        },
+                        if let Some(ref child_stderr) = child_stderr {
+                            Some(child_stderr.as_file())
+                        } else {
+                            None
+                        },
                     );
 
                     unreachable!();
@@ -213,7 +231,7 @@ impl Sandbox {
 pub struct SandboxChildError {
     pub user_error: bool,
     #[source]
-    pub kind: SandboxChildErrorKind
+    pub kind: SandboxChildErrorKind,
 }
 
 #[derive(Serialize, Deserialize, Debug, thiserror::Error, Clone, Default)]
@@ -264,6 +282,37 @@ pub struct SandboxConfig {
     pub disable_strict_mode: bool,
     pub redirect_stdout: bool,
     pub redirect_stderr: bool,
+    pub extract_artifacts: Vec<ArtifactExtraction>,
+    pub mountpoints: Vec<Mountpoint>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ArtifactExtraction {
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Mountpoint {
+    pub source: String,
+    pub target: String,
+    pub flags: MountFlags,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum MountFlags {
+    #[default]
+    ReadOnly,
+    ReadWrite,
+}
+
+impl MountFlags {
+    pub fn to_linux_mount_flags(&self) -> nix::mount::MsFlags {
+        match self {
+            MountFlags::ReadOnly => nix::mount::MsFlags::MS_RDONLY,
+            MountFlags::ReadWrite => nix::mount::MsFlags::empty(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -301,10 +350,19 @@ pub struct SandboxResult {
 impl Debug for SandboxResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SandboxResult")
-            .field("elapsed_wall_time", &UnitDisplay(self.elapsed_wall_time, "ms"))
-            .field("elapsed_cpu_time", &UnitDisplay(self.elapsed_cpu_time, "ms"))
+            .field(
+                "elapsed_wall_time",
+                &UnitDisplay(self.elapsed_wall_time, "ms"),
+            )
+            .field(
+                "elapsed_cpu_time",
+                &UnitDisplay(self.elapsed_cpu_time, "ms"),
+            )
             .field("time_limit_exceeded", &self.time_limit_exceeded)
-            .field("peak_memory_usage", &UnitDisplay(self.peak_memory_usage, "bytes"))
+            .field(
+                "peak_memory_usage",
+                &UnitDisplay(self.peak_memory_usage, "bytes"),
+            )
             .field("memory_limit_exceeded", &self.memory_limit_exceeded)
             .field("output_limit_exceeded", &self.output_limit_exceeded)
             .field("runtime_error", &self.runtime_error)
@@ -320,7 +378,7 @@ impl Debug for SandboxResult {
 
 pub struct UnitDisplay<T>(pub T, pub &'static str);
 
-impl <T: Display> Debug for UnitDisplay<T> {
+impl<T: Display> Debug for UnitDisplay<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.0, self.1)
     }

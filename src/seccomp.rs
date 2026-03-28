@@ -8,17 +8,14 @@ impl RuleSet for BasicSyscalls {
         vec![
             // Allow the sandbox itself to spawn the sandboxed process
             Sysno::execve,
-
             // GLibc initialization and TLS
             Sysno::arch_prctl,
             Sysno::set_tid_address,
-
             // Memory management syscalls
             Sysno::brk,
             Sysno::mmap,
             Sysno::mprotect,
             Sysno::munmap,
-
             // Allow the sandboxed process to exit
             Sysno::exit,
             Sysno::exit_group,

@@ -1,7 +1,7 @@
+use clap::Parser;
+use ssandbox::{ArtifactExtraction, MountFlags, Mountpoint, Sandbox, SandboxConfig};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use ssandbox::{Sandbox, SandboxConfig};
-use clap::Parser;
 
 #[derive(Parser)]
 struct Cli {
@@ -58,6 +58,20 @@ struct Cli {
     /// Env vars
     #[arg(long, value_parser = parse_key_val)]
     env: Vec<(String, String)>,
+
+    /// Extract files from the sandbox after execution. The format is `sandbox_path=host_path`.
+    /// For example, `--extract-artifact /app/output.txt=./output.txt` will copy the file `/app/output.txt`
+    /// from the sandbox to `./output.txt` on the host after execution.
+    /// The sandbox path is relative to the sandbox's root directory, and the host path is relative to the current working directory.
+    #[arg(long, value_parser = parse_key_val)]
+    extract_artifact: Vec<(String, String)>,
+
+    /// Mount points. The format is `host_path=sandbox_path`. For example, `--mount /tmp/data=/app/data`
+    /// will mount the host directory `/tmp/data` to `/app/data` in the sandbox.
+    /// The sandbox path is relative to the sandbox's root directory, and the host path is an absolute path on the host.
+    /// By default, mounts are read-write. You can make them read-only by adding `:ro` suffix to the mount definition, e.g. `--mount-ro /tmp/data=/app/data:ro`.
+    #[arg(long, value_parser = parse_key_val)]
+    mount: Vec<(String, String)>,
 }
 
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
@@ -69,7 +83,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let stdin= if let Some(stdin) = &cli.stdin {
+    let stdin = if let Some(stdin) = &cli.stdin {
         if let Ok(stdin_content) = std::fs::read_to_string(stdin) {
             Some(stdin_content)
         } else {
@@ -95,7 +109,34 @@ fn main() -> ExitCode {
         stdin,
         redirect_stdout: cli.stdout.is_some(),
         redirect_stderr: cli.stderr.is_some(),
+        extract_artifacts: cli
+            .extract_artifact
+            .iter()
+            .map(|(source, target)| ArtifactExtraction {
+                source: source.clone(),
+                target: target.clone(),
+            })
+            .collect(),
+        mountpoints: cli
+            .mount
+            .iter()
+            .map(|(source, target)| Mountpoint {
+                source: source.clone(),
+                target: target
+                    .clone()
+                    .strip_suffix(":ro")
+                    .unwrap_or(target)
+                    .to_string(),
+                flags: if target.ends_with(":ro") {
+                    MountFlags::ReadOnly
+                } else {
+                    MountFlags::ReadWrite
+                },
+            })
+            .collect(),
     };
+
+    dbg!(&config);
 
     let mut sandbox = Sandbox::new(config).unwrap();
 
@@ -106,7 +147,10 @@ fn main() -> ExitCode {
     }
 
     if !root_dir_path.is_dir() {
-        eprintln!("Root directory is not a directory: {}", root_dir_path.display());
+        eprintln!(
+            "Root directory is not a directory: {}",
+            root_dir_path.display()
+        );
         return ExitCode::FAILURE;
     }
 
