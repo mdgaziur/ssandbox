@@ -1,5 +1,4 @@
 use crate::SandboxConfig;
-use nix::unistd::getpid;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::{fs, thread};
@@ -161,15 +160,6 @@ pub fn cgroup_check_oom(cgroup_name: &str) -> anyhow::Result<bool> {
 
 pub fn cgroup_kill(cgroup_name: &str) -> anyhow::Result<()> {
     fs::write(format!("/sys/fs/cgroup/{}/cgroup.kill", cgroup_name), "1")?;
-    Ok(())
-}
-
-pub fn join_cgroup(cgroup_name: &str) -> anyhow::Result<()> {
-    let cgroup_path = format!("/sys/fs/cgroup/{}", cgroup_name);
-    std::fs::write(
-        format!("{}/cgroup.procs", &cgroup_path),
-        getpid().to_string(),
-    )?;
     Ok(())
 }
 

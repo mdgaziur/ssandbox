@@ -72,6 +72,15 @@ struct Cli {
     /// By default, mounts are read-write. You can make them read-only by adding `:ro` suffix to the mount definition, e.g. `--mount /tmp/data=/app/data:ro`.
     #[arg(long, value_parser = parse_key_val)]
     mount: Vec<(String, String)>,
+
+    /// Whether to make the root filesystem read-only.
+    /// This will not change the r/w permissions of mount points defined by `--mount`.
+    #[arg(long)]
+    read_only_root: bool,
+
+    /// Temp directory size in container (with size prefix. eg. 16m)
+    #[arg(long, default_value = "16m")]
+    tmp_size: String,
 }
 
 fn parse_key_val(s: &str) -> Result<(String, String), String> {
@@ -134,6 +143,8 @@ fn main() -> ExitCode {
                 },
             })
             .collect(),
+        read_only_root: cli.read_only_root,
+        tmp_size: cli.tmp_size,
     };
 
     let mut sandbox = match Sandbox::new(config) {
@@ -143,7 +154,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    
+
     let root_dir_path = Path::new(&cli.root_dir);
     if !root_dir_path.exists() {
         eprintln!("Root directory does not exist: {}", root_dir_path.display());

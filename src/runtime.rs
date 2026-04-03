@@ -1,4 +1,3 @@
-use crate::cgroup::join_cgroup;
 use crate::fs::setup_fs;
 use crate::limit::setup_limits;
 use crate::namespace::{setup_namespace0, setup_namespace1};
@@ -187,14 +186,23 @@ where
     Fd: AsFd,
 {
     setup_stdio(child_stdin, child_stdout, child_stderr)?;
-    join_cgroup(cgroup_name)?;
+
+    let cgroup_procs_path = format!("/sys/fs/cgroup/{}/cgroup.procs", cgroup_name);
+    let mut cgroup_fd = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&cgroup_procs_path)?;
+
     setup_namespace1()?;
     setup_fs(config, chroot_dir)?;
     setup_limits(config)?;
     drop_privileges(child_err_writer)?;
+
     if !config.disable_strict_mode {
         setup_seccomp()?;
     }
+
+    cgroup_fd.write_all(b"0\n")?;
+    drop(cgroup_fd);
 
     Ok(())
 }

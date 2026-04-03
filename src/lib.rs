@@ -288,6 +288,8 @@ pub struct SandboxConfig {
     pub redirect_stderr: bool,
     pub extract_artifacts: Vec<ArtifactExtraction>,
     pub mountpoints: Vec<Mountpoint>,
+    pub read_only_root: bool,
+    pub tmp_size: String,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -109,6 +109,15 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
     umount2("/old_root", MntFlags::MNT_DETACH)?;
     let _ = fs::remove_dir("/old_root");
 
+    fs::create_dir_all("/tmp")?;
+    mount(
+        Some("tmpfs"),
+        "/tmp",
+        Some("tmpfs"),
+        MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
+        Some(&*format!("size={},mode=1777", config.tmp_size)),
+    )?;
+
     fs::create_dir_all("/proc")?;
     mount(
         Some("proc"),
@@ -119,6 +128,16 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
     )?;
 
     setup_dev_mknod()?;
+
+    if config.read_only_root {
+        mount(
+            Some("/"),
+            "/",
+            None::<&str>,
+            MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
+            None::<&str>,
+        )?;
+    }
 
     Ok(())
 }
