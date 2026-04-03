@@ -136,8 +136,14 @@ fn main() -> ExitCode {
             .collect(),
     };
 
-    let mut sandbox = Sandbox::new(config).unwrap();
-
+    let mut sandbox = match Sandbox::new(config) {
+        Ok(sandbox) => sandbox,
+        Err(e) => {
+            eprintln!("Failed to create sandbox: {:?}", e);
+            return ExitCode::FAILURE;
+        }
+    };
+    
     let root_dir_path = Path::new(&cli.root_dir);
     if !root_dir_path.exists() {
         eprintln!("Root directory does not exist: {}", root_dir_path.display());

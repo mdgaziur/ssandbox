@@ -23,7 +23,7 @@ use fs_extra::dir::copy;
 use nix::fcntl::{FcntlArg, FdFlag};
 use nix::sys::signal::Signal;
 use nix::sys::wait::{WaitStatus, waitpid};
-use nix::unistd::Pid;
+use nix::unistd::{getuid, Pid};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -41,6 +41,10 @@ pub struct Sandbox {
 
 impl Sandbox {
     pub fn new(config: SandboxConfig) -> anyhow::Result<Self> {
+        if !getuid().is_root() {
+            anyhow::bail!("Sandbox must be initialized by a process running as root!");
+        }
+
         let tmp_dir = TempDir::new("ssandbox")?;
         std::fs::write(
             "/sys/fs/cgroup/cgroup.subtree_control",
