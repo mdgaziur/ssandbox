@@ -70,6 +70,10 @@ struct Cli {
     /// will mount the host directory `/tmp/data` to `/app/data` in the sandbox.
     /// The sandbox path is relative to the sandbox's root directory, and the host path is an absolute path on the host.
     /// By default, mounts are read-write. You can make them read-only by adding `:ro` suffix to the mount definition, e.g. `--mount /tmp/data=/app/data:ro`.
+    /// It is very important to ensure that the host path does not contain any mounted filesystem that is not meant to be written into by the sandboxed executable.
+    /// Due to the limitation in the `mount` syscall, those mountpoints will not be mounted as read-only even if `:ro` suffix is used, and the sandboxed executable
+    /// can write into them and cause security issues. For example, if you mount `/foo` and a filesystem is mounted on `/foo/bar`, it'll still be writeable in the sandbox
+    /// even after mounting `/foo` as read-only.
     #[arg(long, value_parser = parse_key_val)]
     mount: Vec<(String, String)>,
 

@@ -92,7 +92,6 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
                 &target,
                 None::<&str>,
                 MsFlags::MS_BIND
-                    | MsFlags::MS_REC
                     | MsFlags::MS_REMOUNT
                     | mountpoint.flags.to_linux_mount_flags(),
                 None::<&str>,
