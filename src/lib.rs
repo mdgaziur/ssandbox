@@ -190,7 +190,7 @@ impl Sandbox {
                     ),
                     exit_status_code: exit_status,
                     signal,
-                    runtime_error: signal != 0 && sandbox_error.is_none(),
+                    runtime_error: signal != 0 && !killer.is_tle() && sandbox_error.is_none(),
                     system_error: sandbox_error.is_some(),
                     stdout,
                     stderr,
