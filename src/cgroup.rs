@@ -2,8 +2,9 @@ use crate::SandboxConfig;
 use nix::unistd::getpid;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::fs;
+use std::{fs, thread};
 use std::path::Path;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct CGroupError {
@@ -172,9 +173,8 @@ pub fn join_cgroup(cgroup_name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn remove_cgroup(cgroup_name: &str) -> anyhow::Result<()> {
-    fs::remove_dir(format!("/sys/fs/cgroup/{}", cgroup_name))?;
-    Ok(())
+pub fn remove_cgroup(cgroup_name: &str) -> std::io::Result<()> {
+    fs::remove_dir(format!("/sys/fs/cgroup/{}", cgroup_name))
 }
 
 pub fn get_cgroup_memory_peak(cgroup_name: &str) -> anyhow::Result<u64> {
@@ -230,8 +230,30 @@ impl<'a> CGroupGuard<'a> {
 
 impl<'a> Drop for CGroupGuard<'a> {
     fn drop(&mut self) {
-        if let Err(e) = remove_cgroup(self.cgroup_name) {
-            eprintln!("Failed to remove cgroup `{}`: {}", self.cgroup_name, e);
+        let mut retries = 10;
+        let mut delay = Duration::from_millis(10);
+
+        loop {
+            match remove_cgroup(self.cgroup_name) {
+                Ok(_) => return,
+                Err(e) => {
+                    // 16 is EBUSY (Device or resource busy)
+                    if e.raw_os_error() == Some(16) && retries > 0 {
+                        thread::sleep(delay);
+                        retries -= 1;
+                        delay += Duration::from_millis(10); // Gradually wait longer
+                        continue;
+                    }
+
+                    // If it's a different error (like NotFound), or we ran out of retries, bail out
+                    // Note: If it's NotFound, it might have already been deleted, which is technically an Ok state for cleanup.
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        return;
+                    }
+
+                    eprintln!("Failed to remove cgroup '{}': {}", self.cgroup_name, e);
+                }
+            }
         }
     }
 }
