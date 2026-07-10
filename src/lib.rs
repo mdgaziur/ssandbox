@@ -46,12 +46,6 @@ impl Sandbox {
         }
 
         let tmp_dir = TempDir::new("ssandbox")?;
-        if let Err(e) = std::fs::write(
-            "/sys/fs/cgroup/cgroup.subtree_control",
-            "+cpu +memory +cpuset",
-        ) {
-            eprintln!("Failed to enable cgroup controllers on root: {}", e);
-        }
 
         Ok(Self {
             config,
