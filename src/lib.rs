@@ -69,11 +69,14 @@ impl Sandbox {
             }
         }
 
-        copy(
-            file_path,
-            self.chroot_dir.path(),
-            &fs_extra::dir::CopyOptions::new().content_only(true),
-        )?;
+        let status = std::process::Command::new("cp")
+            .arg("-a")
+            .arg(format!("{}/.", file_path.display()))
+            .arg(self.chroot_dir.path())
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("cp -a failed with status: {}", status);
+        }
 
         Ok(())
     }
