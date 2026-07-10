@@ -50,7 +50,7 @@ impl Sandbox {
             "/sys/fs/cgroup/cgroup.subtree_control",
             "+cpu +memory +cpuset",
         ) {
-            log::warn!("Failed to enable cgroup controllers on root: {}", e);
+            eprintln!("Failed to enable cgroup controllers on root: {}", e);
         }
 
         Ok(Self {
