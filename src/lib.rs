@@ -44,6 +44,11 @@ impl Sandbox {
             anyhow::bail!("Sandbox must be initialized by a process running as root!");
         }
 
+        #[cfg(not(target_arch = "x86_64"))]
+        if !config.disable_strict_mode {
+            eprintln!("Warning: Seccomp is currently not supported on target architecture; skipping filter setup.");
+        }
+
         let tmp_dir = TempDir::new("ssandbox")?;
 
         Ok(Self {

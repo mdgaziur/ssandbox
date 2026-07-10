@@ -87,7 +87,7 @@ pub fn setup_seccomp() -> anyhow::Result<()> {
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
-        eprintln!("Warning: Seccomp is currently not supported/implemented on target architecture; skipping filter setup.");
+        // Warning is printed during Sandbox::new() in the parent process before redirection
     }
 
     Ok(())
