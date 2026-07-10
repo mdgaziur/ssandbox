@@ -1,4 +1,4 @@
-#![feature(debug_closure_helpers)]
+// #![feature(debug_closure_helpers)]
 
 mod cgroup;
 mod fs;
@@ -46,10 +46,12 @@ impl Sandbox {
         }
 
         let tmp_dir = TempDir::new("ssandbox")?;
-        std::fs::write(
+        if let Err(e) = std::fs::write(
             "/sys/fs/cgroup/cgroup.subtree_control",
             "+cpu +memory +cpuset",
-        )?;
+        ) {
+            log::warn!("Failed to enable cgroup controllers on root: {}", e);
+        }
 
         Ok(Self {
             config,
@@ -376,8 +378,8 @@ impl Debug for SandboxResult {
             .field("sandbox_error", &self.sandbox_error)
             .field("exit_status_code", &self.exit_status_code)
             .field("signal", &self.signal)
-            .field_with("stdout", |f| f.write_str("<omitted>"))
-            .field_with("stdout", |f| f.write_str("<omitted>"))
+            .field("stdout", &"<omitted>")
+            .field("stderr", &"<omitted>")
             .finish()
     }
 }

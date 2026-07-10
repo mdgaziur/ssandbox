@@ -56,7 +56,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
         None::<&str>,
         MsFlags::MS_REC | MsFlags::MS_PRIVATE,
         None::<&str>,
-    )?;
+    ).map_err(|e| anyhow::anyhow!("Failed to make root private: {}", e))?;
 
     mount(
         Some(chroot_dir),
@@ -64,7 +64,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
         None::<&str>,
         MsFlags::MS_BIND | MsFlags::MS_REC,
         None::<&str>,
-    )?;
+    ).map_err(|e| anyhow::anyhow!("Failed to self bind-mount chroot_dir ({}): {}", chroot_dir, e))?;
 
     for mountpoint in &config.mountpoints {
         let target = Path::new(chroot_dir).canonicalize()?.join(
@@ -84,7 +84,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
             None::<&str>,
             MsFlags::MS_BIND | MsFlags::MS_REC,
             None::<&str>,
-        )?;
+        ).map_err(|e| anyhow::anyhow!("Failed to bind-mount mountpoint {} to {}: {}", mountpoint.source, target.display(), e))?;
 
         if matches!(mountpoint.flags, MountFlags::ReadOnly) {
             mount(
@@ -95,17 +95,17 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
                     | MsFlags::MS_REMOUNT
                     | mountpoint.flags.to_linux_mount_flags(),
                 None::<&str>,
-            )?;
+            ).map_err(|e| anyhow::anyhow!("Failed to remount read-only mountpoint {}: {}", target.display(), e))?;
         }
     }
 
     let put_old = Path::new(chroot_dir).join("old_root");
     fs::create_dir_all(&put_old)?;
 
-    pivot_root(chroot_dir, &*put_old)?;
+    pivot_root(chroot_dir, &*put_old).map_err(|e| anyhow::anyhow!("Failed pivot_root({}, {}): {}", chroot_dir, put_old.display(), e))?;
     chdir("/")?;
 
-    umount2("/old_root", MntFlags::MNT_DETACH)?;
+    umount2("/old_root", MntFlags::MNT_DETACH).map_err(|e| anyhow::anyhow!("Failed to umount /old_root: {}", e))?;
     let _ = fs::remove_dir("/old_root");
 
     fs::create_dir_all("/tmp")?;
@@ -115,7 +115,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
         Some("tmpfs"),
         MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
         Some(&*format!("size={},mode=1777", config.tmp_size)),
-    )?;
+    ).map_err(|e| anyhow::anyhow!("Failed to mount tmpfs on /tmp: {}", e))?;
 
     fs::create_dir_all("/proc")?;
     mount(
@@ -124,7 +124,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
         Some("proc"),
         MsFlags::MS_NOSUID | MsFlags::MS_NOEXEC | MsFlags::MS_NODEV,
         None::<&str>,
-    )?;
+    ).map_err(|e| anyhow::anyhow!("Failed to mount proc on /proc: {}", e))?;
 
     setup_dev_mknod()?;
 
@@ -135,7 +135,7 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
             None::<&str>,
             MsFlags::MS_BIND | MsFlags::MS_REMOUNT | MsFlags::MS_RDONLY,
             None::<&str>,
-        )?;
+        ).map_err(|e| anyhow::anyhow!("Failed to remount root read-only: {}", e))?;
     }
 
     Ok(())
