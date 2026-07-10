@@ -1,10 +1,16 @@
+#[cfg(target_arch = "x86_64")]
 use std::collections::HashMap;
+#[cfg(target_arch = "x86_64")]
 use extrasafe::{RuleSet, SeccompArgumentFilter, SeccompRule, SeccompilerComparator};
+#[cfg(target_arch = "x86_64")]
 use extrasafe::syscalls::Sysno;
+#[cfg(target_arch = "x86_64")]
 use nix::libc;
 
+#[cfg(target_arch = "x86_64")]
 pub struct BasicSyscalls;
 
+#[cfg(target_arch = "x86_64")]
 impl RuleSet for BasicSyscalls {
     fn simple_rules(&self) -> Vec<Sysno> {
         vec![
@@ -71,10 +77,18 @@ impl RuleSet for BasicSyscalls {
         "SandboxSyscalls"
     }
 }
+
 pub fn setup_seccomp() -> anyhow::Result<()> {
-    extrasafe::SafetyContext::new()
-        .enable(BasicSyscalls)?
-        .apply_to_all_threads()?;
+    #[cfg(target_arch = "x86_64")]
+    {
+        extrasafe::SafetyContext::new()
+            .enable(BasicSyscalls)?
+            .apply_to_all_threads()?;
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        eprintln!("Warning: Seccomp is currently not supported/implemented on target architecture; skipping filter setup.");
+    }
 
     Ok(())
 }

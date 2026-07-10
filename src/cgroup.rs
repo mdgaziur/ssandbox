@@ -71,16 +71,16 @@ pub fn setup_cgroup(config: &SandboxConfig) -> anyhow::Result<String> {
     /******************* Hardcoded values *******************/
 
     // Set swap to 0 to ensure strict RAM enforcement
-    // std::fs::write(format!("{}/memory.swap.max", &cgroup_path), "0").map_err(|e| {
-    //     CGroupError::new(
-    //         e.to_string(),
-    //         cgroup_path.clone(),
-    //         CGroupErrorKind::LimitSettingFailed {
-    //             name: "swap".to_string(),
-    //             value: "0".to_string(),
-    //         },
-    //     )
-    // })?;
+    std::fs::write(format!("{}/memory.swap.max", &cgroup_path), "0").map_err(|e| {
+        CGroupError::new(
+            e.to_string(),
+            cgroup_path.clone(),
+            CGroupErrorKind::LimitSettingFailed {
+                name: "swap".to_string(),
+                value: "0".to_string(),
+            },
+        )
+    })?;
 
     // Set CPU quota to 100% to allow full CPU usage
     std::fs::write(

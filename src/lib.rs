@@ -19,7 +19,6 @@ use crate::inmemory_file::new_inmemory_file;
 use crate::killer::TimeLimitKiller;
 use crate::runtime::enter_child;
 use fork::{Fork, fork};
-use fs_extra::dir::copy;
 use nix::fcntl::{FcntlArg, FdFlag};
 use nix::sys::signal::Signal;
 use nix::sys::wait::{WaitStatus, waitpid};
@@ -69,14 +68,29 @@ impl Sandbox {
             }
         }
 
-        let status = std::process::Command::new("cp")
-            .arg("-a")
-            .arg(format!("{}/.", file_path.display()))
-            .arg(self.chroot_dir.path())
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("cp -a failed with status: {}", status);
+        fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+            if !dst.exists() {
+                std::fs::create_dir_all(dst)?;
+            }
+            for entry in std::fs::read_dir(src)? {
+                let entry = entry?;
+                let file_type = entry.file_type()?;
+                let src_path = entry.path();
+                let dst_path = dst.join(entry.file_name());
+
+                if file_type.is_symlink() {
+                    let target = std::fs::read_link(&src_path)?;
+                    std::os::unix::fs::symlink(target, &dst_path)?;
+                } else if file_type.is_dir() {
+                    copy_dir_recursive(&src_path, &dst_path)?;
+                } else {
+                    std::fs::copy(&src_path, &dst_path)?;
+                }
+            }
+            Ok(())
         }
+
+        copy_dir_recursive(&file_path, self.chroot_dir.path())?;
 
         Ok(())
     }
