@@ -59,12 +59,12 @@ pub fn setup_fs(config: &SandboxConfig, chroot_dir: &str) -> anyhow::Result<()> 
     ).map_err(|e| anyhow::anyhow!("Failed to make root private: {}", e))?;
 
     mount(
-        Some(chroot_dir),
+        Some("tmpfs"),
         chroot_dir,
-        None::<&str>,
-        MsFlags::MS_BIND | MsFlags::MS_REC,
-        None::<&str>,
-    ).map_err(|e| anyhow::anyhow!("Failed to self bind-mount chroot_dir ({}): {}", chroot_dir, e))?;
+        Some("tmpfs"),
+        MsFlags::empty(),
+        Some(&*format!("size={},mode=0755", config.tmp_size)),
+    ).map_err(|e| anyhow::anyhow!("Failed to mount tmpfs on chroot_dir ({}): {}", chroot_dir, e))?;
 
     for mountpoint in &config.mountpoints {
         let target = Path::new(chroot_dir).canonicalize()?.join(

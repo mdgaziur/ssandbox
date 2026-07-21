@@ -36,17 +36,8 @@ use tempdir::TempDir;
 pub struct Sandbox {
     config: SandboxConfig,
     chroot_dir: TempDir,
-    overlay_dir: TempDir,
-    rootfs_mounted: bool,
 }
 
-impl Drop for Sandbox {
-    fn drop(&mut self) {
-        if self.rootfs_mounted {
-            let _ = nix::mount::umount2(self.chroot_dir.path(), nix::mount::MntFlags::MNT_DETACH);
-        }
-    }
-}
 
 impl Sandbox {
     pub fn new(config: SandboxConfig) -> anyhow::Result<Self> {
@@ -60,64 +51,10 @@ impl Sandbox {
         }
 
         let tmp_dir = TempDir::new("ssandbox")?;
-        let overlay_dir = TempDir::new("ssandbox_overlay")?;
-
         Ok(Self {
             config,
             chroot_dir: tmp_dir,
-            overlay_dir,
-            rootfs_mounted: false,
         })
-    }
-
-    /// Makes the sandbox have the same directory structure as the given root directory
-    /// by copying the files and directories in the given root directory into the sandbox's root directory.
-    ///
-    /// Note that multiple calls to this function will cause the directory structure created by the previous
-    /// call to be cleared and replaced by the directory structure created by the current call.
-    pub fn clone_root(&mut self, file_path: PathBuf) -> anyhow::Result<()> {
-        if self.rootfs_mounted {
-            let _ = nix::mount::umount2(self.chroot_dir.path(), nix::mount::MntFlags::MNT_DETACH);
-            self.rootfs_mounted = false;
-        }
-
-        let upper = self.overlay_dir.path().join("upper");
-        let work = self.overlay_dir.path().join("work");
-        
-        if !upper.exists() {
-            std::fs::create_dir(&upper)?;
-        } else {
-            std::fs::remove_dir_all(&upper)?;
-            std::fs::create_dir(&upper)?;
-        }
-        std::fs::set_permissions(&upper, std::fs::Permissions::from_mode(0o755))?;
-
-        if !work.exists() {
-            std::fs::create_dir(&work)?;
-        } else {
-            std::fs::remove_dir_all(&work)?;
-            std::fs::create_dir(&work)?;
-        }
-        std::fs::set_permissions(&work, std::fs::Permissions::from_mode(0o755))?;
-        std::fs::set_permissions(self.chroot_dir.path(), std::fs::Permissions::from_mode(0o755))?;
-
-        let options = format!(
-            "lowerdir={},upperdir={},workdir={}",
-            file_path.display(),
-            upper.display(),
-            work.display()
-        );
-
-        nix::mount::mount(
-            Some("overlay"),
-            self.chroot_dir.path(),
-            Some("overlay"),
-            nix::mount::MsFlags::empty(),
-            Some(options.as_str()),
-        )?;
-
-        self.rootfs_mounted = true;
-        Ok(())
     }
 
     pub fn run(&mut self) -> anyhow::Result<SandboxResult> {
