@@ -64,6 +64,8 @@ impl RuleSet for BasicSyscalls {
             Sysno::epoll_ctl,
             Sysno::epoll_wait,
             Sysno::epoll_pwait,
+            Sysno::poll,
+            Sysno::ppoll,
             Sysno::pipe2,
             Sysno::lseek,
             Sysno::writev,
