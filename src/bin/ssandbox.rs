@@ -29,13 +29,6 @@ struct Cli {
     #[arg(short = 'p', long)]
     max_nproc: u64,
 
-    /// The CPU core to pin the executable to
-    #[arg(short = 'c', long)]
-    pinned_cpu_core: u8,
-
-    /// Path to the root directory that will be copied into the sandbox's root directory
-    #[arg(short, long)]
-    root_dir: String,
 
     /// Path to the input file to be copied into the sandbox
     #[arg(short = 'i', long)]
@@ -117,7 +110,6 @@ fn main() -> ExitCode {
             time_limit: cli.time_limit,
             max_nproc: cli.max_nproc,
         },
-        pinned_cpu_core: cli.pinned_cpu_core,
         disable_strict_mode: cli.disable_strict_mode,
         stdin,
         redirect_stdout: cli.stdout.is_some(),
@@ -158,22 +150,6 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-
-    let root_dir_path = Path::new(&cli.root_dir);
-    if !root_dir_path.exists() {
-        eprintln!("Root directory does not exist: {}", root_dir_path.display());
-        return ExitCode::FAILURE;
-    }
-
-    if !root_dir_path.is_dir() {
-        eprintln!(
-            "Root directory is not a directory: {}",
-            root_dir_path.display()
-        );
-        return ExitCode::FAILURE;
-    }
-
-    sandbox.clone_root(PathBuf::from(root_dir_path)).unwrap();
 
     let sandbox_result;
     match sandbox.run() {

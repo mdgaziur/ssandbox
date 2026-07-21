@@ -256,7 +256,7 @@ pub struct SandboxConfig {
     pub executable_path: String,
     pub executable_args: Vec<String>,
     pub env: Vec<(String, String)>,
-    pub pinned_cpu_core: u8,
+
     pub stdin: Option<String>,
     pub disable_strict_mode: bool,
     pub redirect_stdout: bool,

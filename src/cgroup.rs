@@ -128,21 +128,7 @@ pub fn setup_cgroup(config: &SandboxConfig) -> anyhow::Result<String> {
         )
     })?;
 
-    // Pin the number of CPUs the application can use
-    std::fs::write(
-        format!("{}/cpuset.cpus", &cgroup_path),
-        config.pinned_cpu_core.to_string(),
-    )
-    .map_err(|e| {
-        CGroupError::new(
-            e.to_string(),
-            cgroup_path.clone(),
-            CGroupErrorKind::LimitSettingFailed {
-                name: "cpu".to_string(),
-                value: config.pinned_cpu_core.to_string(),
-            },
-        )
-    })?;
+
 
     Ok(cgroup_name)
 }
