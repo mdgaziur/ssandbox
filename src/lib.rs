@@ -36,6 +36,16 @@ use tempdir::TempDir;
 pub struct Sandbox {
     config: SandboxConfig,
     chroot_dir: TempDir,
+    overlay_dir: TempDir,
+    rootfs_mounted: bool,
+}
+
+impl Drop for Sandbox {
+    fn drop(&mut self) {
+        if self.rootfs_mounted {
+            let _ = nix::mount::umount2(self.chroot_dir.path(), nix::mount::MntFlags::MNT_DETACH);
+        }
+    }
 }
 
 impl Sandbox {
@@ -50,10 +60,13 @@ impl Sandbox {
         }
 
         let tmp_dir = TempDir::new("ssandbox")?;
+        let overlay_dir = TempDir::new("ssandbox_overlay")?;
 
         Ok(Self {
             config,
             chroot_dir: tmp_dir,
+            overlay_dir,
+            rootfs_mounted: false,
         })
     }
 
@@ -62,41 +75,45 @@ impl Sandbox {
     ///
     /// Note that multiple calls to this function will cause the directory structure created by the previous
     /// call to be cleared and replaced by the directory structure created by the current call.
-    pub fn clone_root(&self, file_path: PathBuf) -> anyhow::Result<()> {
-        for entry in read_dir(self.chroot_dir.path())? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                std::fs::remove_dir_all(path)?;
-            } else {
-                std::fs::remove_file(path)?;
-            }
+    pub fn clone_root(&mut self, file_path: PathBuf) -> anyhow::Result<()> {
+        if self.rootfs_mounted {
+            let _ = nix::mount::umount2(self.chroot_dir.path(), nix::mount::MntFlags::MNT_DETACH);
+            self.rootfs_mounted = false;
         }
 
-        fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
-            if !dst.exists() {
-                std::fs::create_dir_all(dst)?;
-            }
-            for entry in std::fs::read_dir(src)? {
-                let entry = entry?;
-                let file_type = entry.file_type()?;
-                let src_path = entry.path();
-                let dst_path = dst.join(entry.file_name());
-
-                if file_type.is_symlink() {
-                    let target = std::fs::read_link(&src_path)?;
-                    std::os::unix::fs::symlink(target, &dst_path)?;
-                } else if file_type.is_dir() {
-                    copy_dir_recursive(&src_path, &dst_path)?;
-                } else {
-                    std::fs::copy(&src_path, &dst_path)?;
-                }
-            }
-            Ok(())
+        let upper = self.overlay_dir.path().join("upper");
+        let work = self.overlay_dir.path().join("work");
+        
+        if !upper.exists() {
+            std::fs::create_dir(&upper)?;
+        } else {
+            std::fs::remove_dir_all(&upper)?;
+            std::fs::create_dir(&upper)?;
         }
 
-        copy_dir_recursive(&file_path, self.chroot_dir.path())?;
+        if !work.exists() {
+            std::fs::create_dir(&work)?;
+        } else {
+            std::fs::remove_dir_all(&work)?;
+            std::fs::create_dir(&work)?;
+        }
 
+        let options = format!(
+            "lowerdir={},upperdir={},workdir={}",
+            file_path.display(),
+            upper.display(),
+            work.display()
+        );
+
+        nix::mount::mount(
+            Some("overlay"),
+            self.chroot_dir.path(),
+            Some("overlay"),
+            nix::mount::MsFlags::empty(),
+            Some(options.as_str()),
+        )?;
+
+        self.rootfs_mounted = true;
         Ok(())
     }
 
