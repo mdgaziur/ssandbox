@@ -78,6 +78,7 @@ impl RuleSet for BasicSyscalls {
             Sysno::prctl,
             Sysno::stat,
             Sysno::lstat,
+            Sysno::statx,
             Sysno::prlimit64,
             Sysno::getrlimit,
             Sysno::tgkill,
@@ -85,6 +86,10 @@ impl RuleSet for BasicSyscalls {
             Sysno::uname,
             Sysno::sysinfo,
             Sysno::readlinkat,
+            Sysno::getuid,
+            Sysno::geteuid,
+            Sysno::getgid,
+            Sysno::getegid,
         ]
     }
 
