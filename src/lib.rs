@@ -1,5 +1,5 @@
 // #![feature(debug_closure_helpers)]
-
+use std::os::unix::fs::PermissionsExt;
 mod cgroup;
 mod fs;
 mod inmemory_file;
@@ -90,6 +90,7 @@ impl Sandbox {
             std::fs::remove_dir_all(&upper)?;
             std::fs::create_dir(&upper)?;
         }
+        std::fs::set_permissions(&upper, std::fs::Permissions::from_mode(0o755))?;
 
         if !work.exists() {
             std::fs::create_dir(&work)?;
@@ -97,6 +98,8 @@ impl Sandbox {
             std::fs::remove_dir_all(&work)?;
             std::fs::create_dir(&work)?;
         }
+        std::fs::set_permissions(&work, std::fs::Permissions::from_mode(0o755))?;
+        std::fs::set_permissions(self.chroot_dir.path(), std::fs::Permissions::from_mode(0o755))?;
 
         let options = format!(
             "lowerdir={},upperdir={},workdir={}",
