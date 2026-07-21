@@ -351,8 +351,8 @@ impl Debug for SandboxResult {
             .field("sandbox_error", &self.sandbox_error)
             .field("exit_status_code", &self.exit_status_code)
             .field("signal", &self.signal)
-            .field("stdout", &"<omitted>")
-            .field("stderr", &"<omitted>")
+            .field("stdout", &self.stdout)
+            .field("stderr", &self.stderr)
             .finish()
     }
 }
