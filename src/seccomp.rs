@@ -52,6 +52,20 @@ impl RuleSet for BasicSyscalls {
             Sysno::getpid,
             Sysno::getrandom,
             Sysno::sched_yield,
+            Sysno::clone,
+            Sysno::clone3,
+            Sysno::futex,
+            Sysno::madvise,
+            Sysno::rt_sigreturn,
+            Sysno::sched_getaffinity,
+            Sysno::clock_gettime,
+            Sysno::nanosleep,
+            Sysno::epoll_create1,
+            Sysno::epoll_ctl,
+            Sysno::epoll_wait,
+            Sysno::epoll_pwait,
+            Sysno::pipe2,
+            Sysno::lseek,
         ]
     }
 
