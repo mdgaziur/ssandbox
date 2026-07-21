@@ -66,35 +66,23 @@ impl RuleSet for BasicSyscalls {
             Sysno::epoll_pwait,
             Sysno::pipe2,
             Sysno::lseek,
+            Sysno::open,
+            Sysno::openat,
+            Sysno::prctl,
+            Sysno::stat,
+            Sysno::lstat,
+            Sysno::prlimit64,
+            Sysno::getrlimit,
+            Sysno::tgkill,
+            Sysno::tkill,
+            Sysno::uname,
+            Sysno::sysinfo,
+            Sysno::readlinkat,
         ]
     }
 
     fn conditional_rules(&self) -> HashMap<Sysno, Vec<SeccompRule>> {
-        let mut rules = HashMap::new();
-
-        // 1. DUMPABLE RULE
-        // Allow ONLY prctl(PR_SET_DUMPABLE) for setup, block all other prctl abuse
-        let prctl_rule = SeccompRule::new(Sysno::prctl)
-            .and_condition(SeccompArgumentFilter::new(
-                0,
-                SeccompilerComparator::Eq,
-                libc::PR_SET_DUMPABLE as u64,
-            ));
-        rules.insert(Sysno::prctl, vec![prctl_rule]);
-
-        // 2. READ-ONLY FILE ACCESS RULE
-        // Allow the dynamic linker to open libraries, but strictly forbid writing/creating files
-        // O_RDONLY in Linux evaluates to 0.
-        // We also allow O_RDONLY | O_CLOEXEC (often used by libc).
-        let openat_rule = SeccompRule::new(Sysno::openat)
-            .and_condition(SeccompArgumentFilter::new(
-                2,
-                SeccompilerComparator::MaskedEq(libc::O_RDONLY as u64 | libc::O_RDWR as u64 | libc::O_CREAT as u64),
-                0
-            ));
-        rules.insert(Sysno::openat, vec![openat_rule]);
-
-        rules
+        HashMap::new()
     }
 
     fn name(&self) -> &'static str {
