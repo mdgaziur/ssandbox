@@ -42,6 +42,16 @@ impl RuleSet for BasicSyscalls {
             // Teardown
             Sysno::exit,
             Sysno::exit_group,
+            
+            // Common utility syscalls for Go/Rust runtime boot
+            Sysno::fcntl,
+            Sysno::rt_sigprocmask,
+            Sysno::rt_sigaction,
+            Sysno::sigaltstack,
+            Sysno::gettid,
+            Sysno::getpid,
+            Sysno::getrandom,
+            Sysno::sched_yield,
         ]
     }
 
